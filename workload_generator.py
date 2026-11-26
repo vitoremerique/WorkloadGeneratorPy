@@ -90,7 +90,9 @@ def write_file(path, size, parent_alive):
         while written < size:
             if not parent_alive():
                 raise RuntimeError("gerador encerrado")
-            written += os.write(fd, buf)
+            # o último bloco é cortado para o arquivo ter exatamente `size`
+            # bytes (size é múltiplo de 4K, então o corte segue alinhado)
+            written += os.write(fd, memoryview(buf)[:min(LAYOUT_CHUNK, size - written)])
         os.fsync(fd)
         os.replace(tmp, path)
     except BaseException:
@@ -153,7 +155,7 @@ def prepare_file(path, size):
     finally:
         os.close(r)
     if not file_ready(path, size):
-        msg = b"".join(chunks).decode(errors="replace") or "motivo desconhecido"
+        msg = b"".join(chunks).decode(errors="replace") or "arquivo final com tamanho diferente do esperado"
         sys.exit(f"[IOPS] Falha ao preparar {path}: {msg}")
     print("[IOPS] Arquivo de teste pronto.")
 
