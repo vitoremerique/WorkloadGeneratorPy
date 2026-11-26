@@ -1,2 +1,3 @@
 teste_io.dat
 __pycache__/
+teste_io.dat.*.tmp

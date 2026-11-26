@@ -2,7 +2,7 @@
 
 Gerador de carga sintética de **CPU**, **RAM** e **disco (IOPS)**, em Python.
 
-Todas as cargas rodam em **threads do próprio processo**, sem processos filhos. Assim, todo o consumo aparece no PID do gerador, o que facilita monitorar a carga e medir o overhead de ferramentas de monitoração.
+Todas as cargas rodam em **threads do próprio processo**, sem processos filhos. A única exceção é a criação do arquivo de teste do disco, feita uma vez em um processo separado antes de a carga começar (veja Observações). Assim, todo o consumo aparece no PID do gerador, o que facilita monitorar a carga e medir o overhead de ferramentas de monitoração.
 
 Usa só a biblioteca padrão do Python (3.8 ou mais novo). Roda apenas em Linux.
 
@@ -32,7 +32,7 @@ Ao terminar, o gerador mostra o que foi obtido (IOPS reais, blocos sha256 por se
 
 - **CPU:** uma thread por núcleo. A cada janela de 10 ms, a thread calcula sha256 durante o percentual pedido e dorme no restante. O sha256 roda em C e libera o GIL, então as threads ocupam núcleos diferentes ao mesmo tempo.
 - **RAM:** aloca a memória, escreve em todas as páginas e a mantém ocupada até o fim. Depois de alocada, essa carga não consome CPU.
-- **Disco:** leituras e escritas aleatórias de 4K com `O_DIRECT` (sem cache de páginas), uma operação por vez. As operações são espaçadas para atingir o IOPS pedido; se o disco não acompanhar, a taxa fica no máximo possível.
+- **Disco:** leituras e escritas aleatórias de 4K com `O_DIRECT` (sem cache de páginas), uma operação por vez. As operações são espaçadas para atingir o IOPS pedido; se o disco não acompanhar, a taxa fica no máximo possível. A posição de cada operação e a escolha entre leitura e escrita vêm de um gerador aleatório com semente fixa no código (`SEED = 42`), então toda execução faz exatamente a mesma sequência de operações.
 
 ## Exemplos
 
@@ -45,7 +45,7 @@ python3 workload_generator.py -c 4 -u 80 -r 4 -i 5000 -w 70 -t 60       # tudo j
 
 ## Observações
 
-- **Arquivo de teste:** a carga de disco cria `teste_io.dat` (4 GB por padrão) e o preenche antes de começar a contar o tempo. Ele é reaproveitado nas próximas execuções. Apague ao terminar: `rm -f teste_io.dat`.
+- **Arquivo de teste:** a carga de disco usa `teste_io.dat` (4 GB por padrão). Na primeira execução ele é criado automaticamente por um processo separado (`wlg-prepare`), antes de a carga começar. Assim, a escrita dos 4 GB não aparece no PID do gerador. Nas execuções seguintes o arquivo é reaproveitado e não há preparação. Enquanto é preparado, o arquivo se chama `teste_io.dat.<pid>.tmp` e só ganha o nome final quando está completo. Se a preparação for interrompida (Ctrl+C ou o gerador encerrado), o arquivo incompleto é apagado e a preparação é refeita na próxima execução. Apague ao terminar: `rm -f teste_io.dat`.
 - **I/O direto:** alguns sistemas de arquivos, como o `tmpfs`, não aceitam `O_DIRECT`.
 - **Memória:** não peça mais RAM do que a máquina tem livre, senão o sistema pode usar swap ou acionar o OOM killer.
 - **Monitorar a carga:** `top -p <PID>`, `pidstat -u -r -d -p <PID> 1` ou `/proc/<PID>/io`. O PID é mostrado ao iniciar.
